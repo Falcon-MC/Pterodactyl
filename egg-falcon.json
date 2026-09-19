@@ -1,0 +1,203 @@
+{
+    "_comment": "Falcon - Minecraft: Bedrock Edition server written in C++17. https://github.com/Falcon-MC/Falcon",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": "https:\/\/raw.githubusercontent.com\/Falcon-MC\/Pterodactyl\/main\/egg-falcon.json"
+    },
+    "exported_at": "2026-09-19T12:00:00+00:00",
+    "name": "Falcon",
+    "author": "96527285+NaySurGithub@users.noreply.github.com",
+    "description": "Falcon is a Minecraft: Bedrock Edition server written from scratch in C++17, targeting protocol 2193 (1.26.50). This egg downloads a prebuilt Linux binary straight from the GitHub releases.",
+    "features": null,
+    "docker_images": {
+        "Debian 12": "ghcr.io\/parkervcp\/yolks:debian",
+        "Ubuntu 22.04": "ghcr.io\/parkervcp\/yolks:ubuntu"
+    },
+    "file_denylist": [],
+    "startup": ".\/FalconServer",
+    "config": {
+        "files": "{\n    \"server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-name\": \"{{server.build.env.SERVER_NAME}}\",\n            \"gamemode\": \"{{server.build.env.GAMEMODE}}\",\n            \"difficulty\": \"{{server.build.env.DIFFICULTY}}\",\n            \"allow-cheats\": \"{{server.build.env.ALLOW_CHEATS}}\",\n            \"max-players\": \"{{server.build.env.MAX_PLAYERS}}\",\n            \"online-mode\": \"{{server.build.env.ONLINE_MODE}}\",\n            \"allow-list\": \"{{server.build.env.ALLOW_LIST}}\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"server-portv6\": \"{{server.build.env.SERVER_PORT_V6}}\",\n            \"level-name\": \"{{server.build.env.LEVEL_NAME}}\",\n            \"level-seed\": \"{{server.build.env.LEVEL_SEED}}\",\n            \"view-distance\": \"{{server.build.env.VIEW_DISTANCE}}\",\n            \"tick-distance\": \"{{server.build.env.TICK_DISTANCE}}\",\n            \"spawn-protection\": \"{{server.build.env.SPAWN_PROTECTION}}\",\n            \"skin-change-cooldown\": \"{{server.build.env.SKIN_CHANGE_COOLDOWN}}\",\n            \"enable-lan-visibility\": \"false\"\n        }\n    }\n}",
+        "startup": "{\n    \"done\": \"Server started.\"\n}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!\/bin\/bash\nset -euo pipefail\n\nREPOSITORY=\"${REPOSITORY:-Falcon-MC\/Falcon}\"\nRELEASE_VERSION=\"${RELEASE_VERSION:-latest}\"\nASSET_NAME=\"FalconServer-linux-x64\"\n\napt-get update -qq\napt-get install -y -qq curl jq ca-certificates file > \/dev\/null\n\nmkdir -p \/mnt\/server\ncd \/mnt\/server\n\nif [ \"${RELEASE_VERSION}\" = \"latest\" ]; then\n    API_URL=\"https:\/\/api.github.com\/repos\/${REPOSITORY}\/releases\/latest\"\nelse\n    TAG=\"${RELEASE_VERSION}\"\n    case \"${TAG}\" in\n        v*) ;;\n        *) TAG=\"v${TAG}\" ;;\n    esac\n    API_URL=\"https:\/\/api.github.com\/repos\/${REPOSITORY}\/releases\/tags\/${TAG}\"\nfi\n\necho \"Querying ${API_URL}\"\n\nAUTH_HEADER=()\nif [ -n \"${GITHUB_TOKEN:-}\" ]; then\n    AUTH_HEADER=(-H \"Authorization: Bearer ${GITHUB_TOKEN}\")\nfi\n\nRELEASE_JSON=\"$(curl -fsSL \"${AUTH_HEADER[@]}\" \"${API_URL}\")\"\nRELEASE_TAG=\"$(printf '%s' \"${RELEASE_JSON}\" | jq -r '.tag_name')\"\nDOWNLOAD_URL=\"$(printf '%s' \"${RELEASE_JSON}\" | jq -r --arg name \"${ASSET_NAME}\" '.assets[] | select(.name == $name) | .browser_download_url')\"\nCHECKSUM_URL=\"$(printf '%s' \"${RELEASE_JSON}\" | jq -r --arg name \"${ASSET_NAME}.sha256\" '.assets[] | select(.name == $name) | .browser_download_url')\"\n\nif [ -z \"${DOWNLOAD_URL}\" ] || [ \"${DOWNLOAD_URL}\" = \"null\" ]; then\n    echo \"Release ${RELEASE_TAG} does not contain an asset named ${ASSET_NAME}\"\n    exit 1\nfi\n\necho \"Installing Falcon ${RELEASE_TAG}\"\ncurl -fsSL -o FalconServer \"${DOWNLOAD_URL}\"\n\nif [ -n \"${CHECKSUM_URL}\" ] && [ \"${CHECKSUM_URL}\" != \"null\" ]; then\n    curl -fsSL -o FalconServer.sha256 \"${CHECKSUM_URL}\"\n    EXPECTED=\"$(awk '{print $1}' FalconServer.sha256)\"\n    ACTUAL=\"$(sha256sum FalconServer | awk '{print $1}')\"\n\n    if [ \"${EXPECTED}\" != \"${ACTUAL}\" ]; then\n        echo \"Checksum mismatch, expected ${EXPECTED} but got ${ACTUAL}\"\n        exit 1\n    fi\n\n    echo \"Checksum verified\"\n    rm -f FalconServer.sha256\nfi\n\nchmod +x FalconServer\nfile FalconServer\n\nif [ ! -f server.properties ]; then\n    echo \"Writing a default server.properties\"\n    cat > server.properties <<'PROPERTIES'\nserver-name=Falcon Server\ngamemode=survival\nforce-gamemode=false\ndifficulty=easy\nallow-cheats=true\nmax-players=20\nonline-mode=true\nallow-list=false\nserver-port=19132\nserver-portv6=19133\nenable-lan-visibility=false\nview-distance=10\ntick-distance=4\nplayer-idle-timeout=30\nlevel-name=Bedrock level\nlevel-seed=\ndefault-player-permission-level=member\ntexturepack-required=false\ncontent-log-file-enabled=false\ncompression-algorithm=zlib\nclient-side-chunk-generation-enabled=false\nblock-network-ids-are-hashes=true\ndisable-custom-skins=false\nskin-change-cooldown=30\nspawn-protection=16\ntransport=raknet\nPROPERTIES\nfi\n\nmkdir -p worlds behavior_packs resource_packs\n\necho \"${RELEASE_TAG}\" > .falcon-version\necho \"Installation of Falcon ${RELEASE_TAG} finished\"\n",
+            "container": "ghcr.io\/parkervcp\/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Release version",
+            "description": "Which release to install. Use \"latest\" to always pull the newest published release, or a version such as \"1.0.0\" to pin one.",
+            "env_variable": "RELEASE_VERSION",
+            "default_value": "latest",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "Repository",
+            "description": "GitHub repository the release is downloaded from.",
+            "env_variable": "REPOSITORY",
+            "default_value": "Falcon-MC/Falcon",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "GitHub token",
+            "description": "Optional personal access token. Only needed if the node hits the anonymous GitHub API rate limit.",
+            "env_variable": "GITHUB_TOKEN",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Server name",
+            "description": "Name shown in the server list.",
+            "env_variable": "SERVER_NAME",
+            "default_value": "Falcon Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Level name",
+            "description": "Folder name of the world inside worlds/.",
+            "env_variable": "LEVEL_NAME",
+            "default_value": "Bedrock level",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Level seed",
+            "description": "World seed. Leave empty for a random one.",
+            "env_variable": "LEVEL_SEED",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Gamemode",
+            "description": "survival, creative or adventure.",
+            "env_variable": "GAMEMODE",
+            "default_value": "survival",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:survival,creative,adventure",
+            "field_type": "text"
+        },
+        {
+            "name": "Difficulty",
+            "description": "peaceful, easy, normal or hard.",
+            "env_variable": "DIFFICULTY",
+            "default_value": "easy",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:peaceful,easy,normal,hard",
+            "field_type": "text"
+        },
+        {
+            "name": "Max players",
+            "description": "Maximum number of players allowed at once.",
+            "env_variable": "MAX_PLAYERS",
+            "default_value": "20",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,100",
+            "field_type": "text"
+        },
+        {
+            "name": "Online mode",
+            "description": "Require Xbox Live authentication. Turning this off lets anyone join under any name.",
+            "env_variable": "ONLINE_MODE",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Allow cheats",
+            "description": "Allow commands such as /gamemode and /give.",
+            "env_variable": "ALLOW_CHEATS",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "View distance",
+            "description": "Radius, in chunks, streamed to each player.",
+            "env_variable": "VIEW_DISTANCE",
+            "default_value": "10",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:4,32",
+            "field_type": "text"
+        },
+        {
+            "name": "Tick distance",
+            "description": "Radius, in chunks, that keeps ticking around each player.",
+            "env_variable": "TICK_DISTANCE",
+            "default_value": "4",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:4,12",
+            "field_type": "text"
+        },
+        {
+            "name": "Allow list",
+            "description": "Only let players listed in allowlist.json join.",
+            "env_variable": "ALLOW_LIST",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Spawn protection",
+            "description": "Radius around the world spawn where only operators can build or interact. -1 disables it.",
+            "env_variable": "SPAWN_PROTECTION",
+            "default_value": "16",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:-1,1000",
+            "field_type": "text"
+        },
+        {
+            "name": "Skin change cooldown",
+            "description": "Minimum number of seconds between two skin changes of the same player.",
+            "env_variable": "SKIN_CHANGE_COOLDOWN",
+            "default_value": "30",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:0,3600",
+            "field_type": "text"
+        },
+        {
+            "name": "IPv6 port",
+            "description": "Port used for the IPv6 listener. Give it its own allocation if you serve IPv6 clients.",
+            "env_variable": "SERVER_PORT_V6",
+            "default_value": "19133",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1024,65535",
+            "field_type": "text"
+        }
+    ]
+}
