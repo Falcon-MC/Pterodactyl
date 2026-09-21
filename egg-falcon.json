@@ -7,7 +7,7 @@
     "exported_at": "2026-09-19T12:00:00+00:00",
     "name": "Falcon",
     "author": "96527285+NaySurGithub@users.noreply.github.com",
-    "description": "Falcon is a Minecraft: Bedrock Edition server written from scratch in C++17, targeting protocol 2193 (1.26.50). This egg downloads a prebuilt Linux binary straight from the GitHub releases.",
+    "description": "Falcon is a Minecraft: Bedrock Edition server written from scratch in C++17, targeting protocol 2193 (1.26.51). This egg downloads a prebuilt Linux binary straight from the GitHub releases.",
     "features": null,
     "docker_images": {
         "Debian 12": "ghcr.io\/parkervcp\/yolks:debian",

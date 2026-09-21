@@ -1,6 +1,6 @@
 # Falcon - Pterodactyl egg
 
-Runs [Falcon](https://github.com/Falcon-MC/Falcon), a Minecraft: Bedrock Edition server written in C++17 (protocol 2193, Minecraft 1.26.50), from the prebuilt Linux binary published on GitHub releases.
+Runs [Falcon](https://github.com/Falcon-MC/Falcon), a Minecraft: Bedrock Edition server written in C++17 (protocol 2193, Minecraft 1.26.51), from the prebuilt Linux binary published on GitHub releases.
 
 The egg declares an `update_url`, so the panel can pull new versions of it from this repository.
 
