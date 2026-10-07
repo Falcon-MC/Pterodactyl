@@ -1,0 +1,123 @@
+{
+    "_comment": "Falcon Broadcaster - lists a Minecraft: Bedrock Edition server in the Xbox Live friends list. https://github.com/Falcon-MC/Broadcaster",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": "https://raw.githubusercontent.com/Falcon-MC/Pterodactyl/main/egg-falcon-broadcaster.json"
+    },
+    "exported_at": "2026-10-03T12:00:00+00:00",
+    "name": "Falcon Broadcaster",
+    "author": "96527285+NaySurGithub@users.noreply.github.com",
+    "description": "Falcon Broadcaster publishes a Minecraft: Bedrock Edition server as a world in the Friends tab of one or more Xbox Live accounts, so players on every platform, consoles included, can join it. This egg downloads a prebuilt Linux binary straight from the GitHub releases.",
+    "features": null,
+    "docker_images": {
+        "Debian 12": "ghcr.io/parkervcp/yolks:debian",
+        "Ubuntu 22.04": "ghcr.io/parkervcp/yolks:ubuntu"
+    },
+    "file_denylist": [],
+    "startup": "./FalconBroadcaster",
+    "config": {
+        "files": "{\n    \"broadcaster.json\": {\n        \"parser\": \"json\",\n        \"find\": {\n            \"server.host\": \"{{server.build.env.TARGET_HOST}}\",\n            \"server.port\": \"{{server.build.env.TARGET_PORT}}\",\n            \"session.hostName\": \"{{server.build.env.HOST_NAME}}\",\n            \"session.worldName\": \"{{server.build.env.WORLD_NAME}}\",\n            \"friendSync.maxFriends\": \"{{server.build.env.MAX_FRIENDS}}\",\n            \"friendSync.inactiveDays\": \"{{server.build.env.INACTIVE_DAYS}}\"\n        }\n    }\n}",
+        "startup": "{\n    \"done\": \"Broadcasting \"\n}",
+        "logs": "{}",
+        "stop": "stop"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\nset -euo pipefail\n\nREPOSITORY=\"${REPOSITORY:-Falcon-MC/Broadcaster}\"\nRELEASE_VERSION=\"${RELEASE_VERSION:-latest}\"\nASSET_NAME=\"FalconBroadcaster-linux-x64\"\n\napt-get update -qq\napt-get install -y -qq curl jq ca-certificates file > /dev/null\n\nmkdir -p /mnt/server\ncd /mnt/server\n\nif [ \"${RELEASE_VERSION}\" = \"latest\" ]; then\n    API_URL=\"https://api.github.com/repos/${REPOSITORY}/releases/latest\"\nelse\n    TAG=\"${RELEASE_VERSION}\"\n    case \"${TAG}\" in\n        v*) ;;\n        *) TAG=\"v${TAG}\" ;;\n    esac\n    API_URL=\"https://api.github.com/repos/${REPOSITORY}/releases/tags/${TAG}\"\nfi\n\necho \"Querying ${API_URL}\"\n\nAUTH_HEADER=()\nif [ -n \"${GITHUB_TOKEN:-}\" ]; then\n    AUTH_HEADER=(-H \"Authorization: Bearer ${GITHUB_TOKEN}\")\nfi\n\nRELEASE_JSON=\"$(curl -fsSL \"${AUTH_HEADER[@]}\" \"${API_URL}\")\"\nRELEASE_TAG=\"$(printf '%s' \"${RELEASE_JSON}\" | jq -r '.tag_name')\"\nDOWNLOAD_URL=\"$(printf '%s' \"${RELEASE_JSON}\" | jq -r --arg name \"${ASSET_NAME}\" '.assets[] | select(.name == $name) | .browser_download_url')\"\nCHECKSUM_URL=\"$(printf '%s' \"${RELEASE_JSON}\" | jq -r --arg name \"${ASSET_NAME}.sha256\" '.assets[] | select(.name == $name) | .browser_download_url')\"\n\nif [ -z \"${DOWNLOAD_URL}\" ] || [ \"${DOWNLOAD_URL}\" = \"null\" ]; then\n    echo \"Release ${RELEASE_TAG} does not contain an asset named ${ASSET_NAME}\"\n    exit 1\nfi\n\necho \"Installing Falcon Broadcaster ${RELEASE_TAG}\"\ncurl -fsSL -o FalconBroadcaster \"${DOWNLOAD_URL}\"\n\nif [ -n \"${CHECKSUM_URL}\" ] && [ \"${CHECKSUM_URL}\" != \"null\" ]; then\n    curl -fsSL -o FalconBroadcaster.sha256 \"${CHECKSUM_URL}\"\n    EXPECTED=\"$(awk '{print $1}' FalconBroadcaster.sha256)\"\n    ACTUAL=\"$(sha256sum FalconBroadcaster | awk '{print $1}')\"\n\n    if [ \"${EXPECTED}\" != \"${ACTUAL}\" ]; then\n        echo \"Checksum mismatch, expected ${EXPECTED} but got ${ACTUAL}\"\n        exit 1\n    fi\n\n    echo \"Checksum verified\"\n    rm -f FalconBroadcaster.sha256\nfi\n\nchmod +x FalconBroadcaster\nfile FalconBroadcaster\n\nif [ ! -f broadcaster.json ]; then\n    echo \"Writing a default broadcaster.json\"\n    cat > broadcaster.json <<'SETTINGS'\n{\n  \"server\": { \"host\": \"play.example.net\", \"port\": 19132 },\n  \"routes\": [],\n  \"session\": {\n    \"hostName\": \"\",\n    \"worldName\": \"\",\n    \"maxPlayers\": 20,\n    \"queryServer\": true,\n    \"updateInterval\": 30,\n    \"signaling\": \"websocket\"\n  },\n  \"accounts\": [\n    { \"name\": \"main\", \"token\": \"cache/token.json\" }\n  ],\n  \"friendSync\": {\n    \"enabled\": true,\n    \"updateInterval\": 60,\n    \"acceptRequests\": true,\n    \"removeInactive\": true,\n    \"inactiveDays\": 8,\n    \"maxFriends\": 1000\n  },\n  \"cache\": { \"playerHistory\": \"cache/player_history.json\" }\n}\nSETTINGS\nfi\n\nmkdir -p cache logs\n\necho \"${RELEASE_TAG}\" > .broadcaster-version\necho \"Installation of Falcon Broadcaster ${RELEASE_TAG} finished\"\n",
+            "container": "ghcr.io/parkervcp/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Release version",
+            "description": "Which release to install. Use \"latest\" to always pull the newest published release, or a version such as \"1.0.0\" to pin one.",
+            "env_variable": "RELEASE_VERSION",
+            "default_value": "latest",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "Repository",
+            "description": "GitHub repository the release is downloaded from.",
+            "env_variable": "REPOSITORY",
+            "default_value": "Falcon-MC/Broadcaster",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "GitHub token",
+            "description": "Optional personal access token. Only needed if the node hits the anonymous GitHub API rate limit.",
+            "env_variable": "GITHUB_TOKEN",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Target host",
+            "description": "Address of the server players are sent to.",
+            "env_variable": "TARGET_HOST",
+            "default_value": "play.example.net",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Target port",
+            "description": "Port of the server players are sent to.",
+            "env_variable": "TARGET_PORT",
+            "default_value": "19132",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Host name",
+            "description": "First line shown in the Friends tab. Leave empty to show the MOTD of the server.",
+            "env_variable": "HOST_NAME",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "World name",
+            "description": "Second line shown in the Friends tab. Leave empty to show the MOTD of the server.",
+            "env_variable": "WORLD_NAME",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Max friends",
+            "description": "Friends each account keeps before it stops accepting requests. Xbox Live allows 1000.",
+            "env_variable": "MAX_FRIENDS",
+            "default_value": "1000",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,1000",
+            "field_type": "text"
+        },
+        {
+            "name": "Inactive days",
+            "description": "Friends who have not joined for this many days are removed to keep room in the list.",
+            "env_variable": "INACTIVE_DAYS",
+            "default_value": "8",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,365",
+            "field_type": "text"
+        }
+    ]
+}

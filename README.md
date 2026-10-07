@@ -1,4 +1,9 @@
-# Falcon - Pterodactyl egg
+# Falcon - Pterodactyl eggs
+
+`egg-falcon.json` runs the Falcon server, described below. `egg-falcon-broadcaster.json` runs
+[Falcon Broadcaster](https://github.com/Falcon-MC/Broadcaster), which lists a server in the Xbox Live friends list;
+it is installed the same way, its stop command is `stop`, and the Microsoft sign-in code shows in the console on the
+first start.
 
 Runs [Falcon](https://github.com/Falcon-MC/Falcon), a Minecraft: Bedrock Edition server written in C++17 (protocol 2193, Minecraft 1.26.52), from the prebuilt Linux binary published on GitHub releases.
 
