@@ -5,7 +5,7 @@
 it is installed the same way, its stop command is `stop`, and the Microsoft sign-in code shows in the console on the
 first start.
 
-Runs [Falcon](https://github.com/Falcon-MC/Falcon), a Minecraft: Bedrock Edition server written in C++17 (protocol 2193, Minecraft 1.26.52), from the prebuilt Linux binary published on GitHub releases.
+Runs [Falcon](https://github.com/Falcon-MC/Falcon), a Minecraft: Bedrock Edition server written in C++17 (protocol 2225, Minecraft 1.26.60), from the prebuilt Linux binary published on GitHub releases.
 
 The egg declares an `update_url`, so the panel can pull new versions of it from this repository.
 
