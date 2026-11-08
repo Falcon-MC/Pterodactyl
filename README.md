@@ -38,7 +38,7 @@ Debian 12 and Ubuntu 22.04 satisfy all of these. **Debian 11 does not** - its gl
 
 ## Stopping
 
-The stop command is `^C`, not `stop`. Falcon has no `stop` console command; it shuts down on `SIGINT`/`SIGTERM`, and that path is what saves modified chunks and player data. Killing the process instead loses everything since the last save.
+The egg stops the server with `^C`. Falcon shuts down on `SIGINT`/`SIGTERM` the same way as on its `stop` console command, saving modified chunks and player data. Killing the process instead loses everything since the last save.
 
 Known issue: after `Saved N chunk(s)` the process may not exit on its own. The data is already saved at that point, so a second stop (or letting the panel kill it) is safe.
 
