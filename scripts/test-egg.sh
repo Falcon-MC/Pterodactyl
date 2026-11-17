@@ -22,7 +22,7 @@ cleanup() {
   if [[ -n "$container" ]]; then
     docker rm -f "$container" >/dev/null 2>&1 || true
   fi
-  rm -rf "$work"
+  sudo rm -rf -- "$work"
 }
 trap cleanup EXIT
 
@@ -48,6 +48,11 @@ while IFS= read -r image; do
   # Each runtime gets a fresh copy of the installed files and starts as the image user.
   runtime=$(mktemp -d "$work/runtime.XXXXXX")
   cp -a "$work/server/." "$runtime/"
+  if [[ "$egg" == egg-falcon-broadcaster.json ]]; then
+    # Apply the target host an administrator supplies through the panel.
+    jq '.server.host = "127.0.0.1"' "$runtime/broadcaster.json" > "$runtime/broadcaster.tmp"
+    mv "$runtime/broadcaster.tmp" "$runtime/broadcaster.json"
+  fi
   chmod -R a+rwX "$runtime"
   container=$(docker run -dit --platform linux/amd64 \
     --mount "type=bind,src=$runtime,dst=/home/container" \
