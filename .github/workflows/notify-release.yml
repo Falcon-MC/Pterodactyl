@@ -1,0 +1,42 @@
+name: Notify egg verification
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    secrets:
+      AUTOMATION_APP_ID:
+        required: true
+      AUTOMATION_APP_PRIVATE_KEY:
+        required: true
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create Falcon Rules token
+        id: token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          owner: Falcon-MC
+          repositories: Pterodactyl
+          permission-contents: write
+
+      - name: Trigger release tests
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          PROJECT: ${{ github.event.repository.name }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$GITHUB_REPOSITORY" == Falcon-MC/Falcon || "$GITHUB_REPOSITORY" == Falcon-MC/Broadcaster ]]
+          gh api repos/Falcon-MC/Pterodactyl/dispatches \
+            -f event_type=verify-release-eggs \
+            -f "client_payload[project]=$PROJECT" \
+            -f "client_payload[tag]=$TAG"

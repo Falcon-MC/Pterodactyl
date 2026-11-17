@@ -1,0 +1,126 @@
+name: Verify release eggs
+
+on:
+  pull_request:
+    paths:
+      - 'egg-*.json'
+      - 'scripts/test-egg.sh'
+      - '.github/workflows/release-eggs.yml'
+  repository_dispatch:
+    types: [verify-release-eggs]
+  workflow_dispatch:
+    inputs:
+      project:
+        description: Project whose release triggered this run
+        type: choice
+        options: [Falcon, Broadcaster]
+        default: Falcon
+      tag:
+        description: Exact release tag (leave empty to test both latest releases)
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: Falcon
+            egg: egg-falcon.json
+          - project: Broadcaster
+            egg: egg-falcon-broadcaster.json
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve published release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT: ${{ matrix.project }}
+          RELEASE_PROJECT: ${{ github.event.client_payload.project || inputs.project }}
+          RELEASE_TAG: ${{ github.event.client_payload.tag || inputs.tag }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" == repository_dispatch ]]; then
+            [[ "$RELEASE_PROJECT" == Falcon || "$RELEASE_PROJECT" == Broadcaster ]]
+            [[ -n "$RELEASE_TAG" ]]
+          fi
+          endpoint=latest
+          if [[ "$PROJECT" == "$RELEASE_PROJECT" && -n "$RELEASE_TAG" ]]; then
+            [[ "$RELEASE_TAG" =~ ^v[0-9][A-Za-z0-9._+-]*$ ]]
+            endpoint="tags/$RELEASE_TAG"
+          fi
+          tag=$(gh api "repos/Falcon-MC/$PROJECT/releases/$endpoint" --jq 'select(.draft == false) | .tag_name')
+          [[ "$tag" =~ ^v[0-9][A-Za-z0-9._+-]*$ ]]
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install and start egg
+        env:
+          EGG: ${{ matrix.egg }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: bash scripts/test-egg.sh "$EGG" "$TAG"
+
+  sync:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: sync-release-eggs
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Synchronize Falcon compatibility
+        id: sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          gh api repos/Falcon-MC/Falcon/releases/latest | python3 scripts/sync-falcon.py
+          if ! git diff --quiet -- '*.json' README.md; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Falcon Rules token
+        id: token
+        if: steps.sync.outputs.changed == 'true'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Open or update pull request
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          branch=automation/release-eggs
+          gh auth setup-git
+          git config user.name 'Falcon Rules'
+          git config user.email 'falcon-rules[bot]@users.noreply.github.com'
+          remote_branch=$(git ls-remote --heads origin "refs/heads/$branch")
+          if [[ -n "$remote_branch" ]]; then
+            git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch"
+          fi
+          if git diff --quiet "origin/$branch" -- '*.json' README.md 2>/dev/null; then
+            echo 'The automation branch already has the same egg and README content.'
+          else
+            git add -- egg-falcon.json egg-falcon-broadcaster.json README.md
+            git commit -m 'Sync Falcon release compatibility'
+            git push --force-with-lease origin "HEAD:refs/heads/$branch"
+          fi
+          existing=$(gh pr list --head "$branch" --base "$BASE" --json number --jq '.[0].number // empty')
+          if [[ -z "$existing" ]]; then
+            gh pr create --head "$branch" --base "$BASE" \
+              --title 'Sync Falcon release compatibility' \
+              --body 'Update the egg and README from the published Falcon release notes after both eggs pass their container checks.'
+          fi

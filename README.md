@@ -70,3 +70,20 @@ Known issue: after `Saved N chunk(s)` the process may not exit on its own. The d
 
 - Falcon is an in-progress reimplementation, not a drop-in replacement for the official Bedrock Dedicated Server. Expect missing gameplay.
 - The Linux binary is built and linked by CI on every release, but is not run there. Compiling is not the same as working.
+
+## Release checks
+
+The Falcon and Broadcaster release workflows dispatch **Verify release eggs** after publishing.
+The run tests the released tag and the other project's latest release. Both eggs run their
+embedded installer, verify the published checksum, and start the binary in each advertised
+runtime image. Broadcaster reaches the Microsoft sign-in prompt without signing in.
+
+After both checks pass, the workflow reads the Bedrock version and protocol from the latest
+stable Falcon release notes. It opens or updates one pull request only when an egg JSON or
+this README changes. Use **Run workflow** to test both latest releases, or select a project
+and enter an exact published tag.
+
+Install the Pterodactyl workflows on the default branch before enabling the release hooks
+in Falcon and Broadcaster. Make `AUTOMATION_APP_ID` and `AUTOMATION_APP_PRIVATE_KEY` available
+to all three repositories. The Falcon Rules app must be installed on Pterodactyl with write
+access to **Contents** and **Pull requests**.
